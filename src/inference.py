@@ -4,7 +4,9 @@ Provides end-to-end syllable prediction for new words.
 """
 
 import logging
+import pickle
 from typing import List, Dict, Tuple, Optional
+from pathlib import Path
 
 from src.crf_model import CRFModel
 from src.features import FeatureExtractor
@@ -21,13 +23,41 @@ class SyllableSegmenter:
         Initialize segmenter with trained model.
 
         Args:
-            model_path: Path to saved CRF model
+            model_path: Path to saved CRF or BiLSTM+CRF model
 
         Raises:
             FileNotFoundError: If model file doesn't exist
         """
-        self.model = CRFModel.load(model_path)
-        logger.info(f"Segmenter initialized with model from {model_path}")
+        if not Path(model_path).exists():
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        
+        # Try to load as BiLSTM+CRF first, then fall back to CRF
+        try:
+            with open(model_path, 'rb') as f:
+                model = pickle.load(f)
+            
+            # Check if it's a BiLSTMCRFTrainer or CRFModel dict
+            if isinstance(model, dict) and 'model' in model and 'vectorizer' in model:
+                # It's a CRFModel dict (has 'model' and 'vectorizer' keys)
+                self.model = model
+                self.model_type = 'crf'
+                logger.info(f"Loaded CRF model from {model_path}")
+            elif hasattr(model, 'model') and hasattr(model.model, 'forward'):
+                # It's a BiLSTMCRFTrainer (has a PyTorch model with forward method)
+                self.model = model
+                self.model_type = 'bilstm_crf'
+                logger.info(f"Loaded BiLSTM+CRF model from {model_path}")
+            else:
+                # Try to infer from attributes
+                if hasattr(model, 'predict') and callable(model.predict):
+                    self.model = model
+                    self.model_type = 'bilstm_crf'
+                    logger.info(f"Loaded BiLSTM+CRF model from {model_path}")
+                else:
+                    raise ValueError(f"Unknown model format in {model_path}")
+        except Exception as e:
+            logger.error(f"Failed to load model: {e}")
+            raise
 
     def _split_into_chunks(self, word: str) -> List[str]:
         """
@@ -60,19 +90,39 @@ class SyllableSegmenter:
         # Split word into chunks
         chunks = self._split_into_chunks(word)
         
-        # Extract features for each chunk
-        features_list = []
-        for i, chunk in enumerate(chunks):
-            prev_chunk = chunks[i - 1] if i > 0 else None
-            next_chunk = chunks[i + 1] if i < len(chunks) - 1 else None
+        # For BiLSTM+CRF model
+        if self.model_type == 'bilstm_crf':
+            predictions = self.model.predict([chunks])
+            if predictions and predictions[0]:
+                predictions = predictions[0]
+            else:
+                predictions = ['B'] * len(chunks)
+        else:
+            # For CRF model - extract features
+            features_list = []
+            for i, chunk in enumerate(chunks):
+                prev_chunk = chunks[i - 1] if i > 0 else None
+                next_chunk = chunks[i + 1] if i < len(chunks) - 1 else None
 
-            features = FeatureExtractor.extract_syllable_features(
-                chunk, prev_chunk, next_chunk
-            )
-            features_list.append(features)
+                features = FeatureExtractor.extract_syllable_features(
+                    chunk, prev_chunk, next_chunk
+                )
+                features_list.append(features)
 
-        # Get predictions
-        predictions = self.model.predict(features_list)
+            # Get predictions using CRF dict format
+            if isinstance(self.model, dict):
+                # CRF dict format with 'model' and 'vectorizer' keys
+                vectorizer = self.model['vectorizer']
+                crf_model = self.model['model']
+                
+                # Vectorize features
+                X = vectorizer.transform(features_list)
+                
+                # Get predictions
+                predictions = crf_model.predict(X).tolist()
+            else:
+                # Original CRFModel object (fallback)
+                predictions = self.model.predict(features_list)
 
         # Group chunks into syllables based on predictions
         syllables = []

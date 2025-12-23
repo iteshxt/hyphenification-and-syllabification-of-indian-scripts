@@ -19,6 +19,7 @@ CRF_TRAIN_DATA_FULL: Final[str] = str(DATA_DIR / "crf_train_data_full.txt")
 
 # ==================== MODEL FILES ====================
 MODEL_PATH: Final[str] = str(MODELS_DIR / "crf_model.pkl")
+BILSTM_CRF_MODEL_PATH: Final[str] = str(MODELS_DIR / "bilstm_crf_model.pkl")
 MODEL_METRICS_PATH: Final[str] = str(MODELS_DIR / "metrics.json")
 
 # ==================== TRAINING PARAMETERS ====================
