@@ -1,35 +1,148 @@
 # Devanagari Syllabification
 
-**Automatic syllable segmentation for Devanagari (Hindi) using BiLSTM+CRF & CRF models.**
+**Automatic syllable segmentation for Devanagari (Hindi) using BiLSTM+CRF & CRF models with a modern web interface.**
 
-## 🎯 Overview
+## Overview
 
-ML system for segmenting Devanagari words into syllables. 
+ML system for segmenting Devanagari words into syllables with a React frontend and FastAPI backend.
 
-- ✅ Dual Models: BiLSTM+CRF (neural) & CRF (traditional)
-- ✅ High Accuracy: F1 > 0.90 on both models
-- ✅ Fast Inference: Real-time segmentation
+- Dual Models: BiLSTM+CRF (neural) & CRF (traditional)
+- High Accuracy: F1 > 0.90 on both models
+- Fast Inference: Real-time segmentation
+- Web Interface: Modern neobrutalist UI with transliteration support
+- Transliteration: Type in English (romanized) → auto-converts to Devanagari
 
-## 🚀 Setup
+## Project Structure
+
+```
+hyphenification-and-syllabification-of-indian-scripts/
+├── frontend/                 # React frontend
+│   ├── src/
+│   │   ├── App.jsx          # Main React component
+│   │   ├── App.css          # Neobrutalist styling
+│   │   └── index.css        # Global styles
+│   ├── index.html
+│   └── package.json
+│
+├── server/                   # Python backend
+│   ├── app.py               # FastAPI server
+│   ├── src/
+│   │   ├── config.py        # Configuration & paths
+│   │   ├── features.py      # Feature extraction
+│   │   ├── crf_model.py     # CRF model
+│   │   ├── bilstm_crf_model.py  # BiLSTM+CRF model
+│   │   ├── inference.py     # Unified inference API
+│   │   └── syllable_splitter.py
+│   ├── scripts/
+│   │   ├── train.py         # Train CRF
+│   │   └── train_bilstm_crf.py  # Train BiLSTM+CRF
+│   ├── data/
+│   │   ├── devnagri-gold-dataset.jsonl
+│   │   └── crf_train_data_full.txt
+│   ├── models/
+│   │   ├── crf_model.pkl
+│   │   └── bilstm_crf_model.pkl
+│   ├── tests/
+│   ├── main.py              # CLI interface
+│   └── requirements.txt
+│
+└── README.md
+```
+
+## Quick Start
+
+### 1. Setup Backend
 
 ```bash
-git clone <repo> && cd NLP-project
-python3 -m venv .venv
+cd server
+
+# Using uv (recommended)
+uv venv
+uv pip install -r requirements.txt
+
+# Or using pip
+python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## ⚡ Quick Start
+### 2. Run Backend Server
 
-### CLI
 ```bash
+cd server
+uv run uvicorn app:app --reload --port 8000
+
+# Server runs at http://localhost:8000
+```
+
+### 3. Setup & Run Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+
+# Frontend runs at http://localhost:5173
+```
+
+### 4. Open in Browser
+
+Visit http://localhost:5173 to use the web interface.
+
+## Web Interface Features
+
+- **Transliteration**: Type in English (e.g., "bharat") and it auto-converts to Devanagari (भारत)
+- **Live Preview**: See the Devanagari conversion as you type
+- **Dual Input**: Works with both romanized English and direct Devanagari input
+- **Example Buttons**: Quick examples to try (bharat, namaste, vidyalaya, etc.)
+- **Syllable Visualization**: See syllables as separate chips
+- **Hyphenated Output**: Shows word with syllable boundaries marked
+- **Statistics**: Syllable count, character count, input type
+
+## API Endpoints
+
+### POST /segment
+
+Segment a single word into syllables.
+
+```bash
+curl -X POST http://localhost:8000/segment \
+  -H "Content-Type: application/json" \
+  -d '{"word": "भारत"}'
+```
+
+Response:
+```json
+{
+  "word": "भारत",
+  "syllables": ["भा", "रत"],
+  "hyphenated": "भा-रत",
+  "count": 2
+}
+```
+
+### POST /segment/batch
+
+Segment multiple words.
+
+```bash
+curl -X POST http://localhost:8000/segment/batch \
+  -H "Content-Type: application/json" \
+  -d '["भारत", "नमस्ते"]'
+```
+
+## CLI Usage
+
+```bash
+cd server
 python main.py              # BiLSTM+CRF (default)
 python main.py --crf        # CRF model
 
 # Enter: कर्म → Output: ['कर्', 'म']
 ```
 
-### Python API
+## Python API
+
 ```python
 from src.inference import SyllableSegmenter
 from src.config import BILSTM_CRF_MODEL_PATH
@@ -39,9 +152,10 @@ print(segmenter.segment_word('कर्म'))       # ['कर्', 'म']
 print(segmenter.segment_word('विद्यालय'))  # ['वि', 'द्या', 'लय']
 ```
 
-## 📊 Models
+## Models
 
 ### BiLSTM+CRF (Recommended)
+
 | Metric | Score |
 |--------|-------|
 | Precision | 1.0 |
@@ -52,9 +166,10 @@ print(segmenter.segment_word('विद्यालय'))  # ['वि', 'द्�
 - **Architecture**: Embedding (64D) → BiLSTM (128H) → CRF
 - **Training**: 645 sentences, 50 epochs
 - **Model Size**: 2.5MB | **Inference**: 5-10ms/word
-- **File**: `models/bilstm_crf_model.pkl`
+- **File**: `server/models/bilstm_crf_model.pkl`
 
 ### CRF Baseline
+
 | Metric | Score |
 |--------|-------|
 | Precision | 0.92 |
@@ -65,57 +180,13 @@ print(segmenter.segment_word('विद्यालय'))  # ['वि', 'द्�
 - **Architecture**: DictVectorizer + LogisticRegression
 - **Training**: 516 train, 129 test
 - **Model Size**: 200KB | **Inference**: 1-2ms/word
-- **File**: `models/crf_model.pkl`
+- **File**: `server/models/crf_model.pkl`
 
-## 📁 Directory
-
-```
-NLP-project/
-├── src/
-│   ├── config.py           # Configuration & paths
-│   ├── features.py         # 10-feature extraction
-│   ├── crf_model.py        # CRF model
-│   ├── bilstm_crf_model.py # BiLSTM+CRF model
-│   ├── inference.py        # Unified API
-│   └── syllable_splitter.py
-├── scripts/
-│   ├── train.py            # Train CRF
-│   └── train_bilstm_crf.py # Train BiLSTM+CRF
-├── data/
-│   ├── devnagri-gold-dataset.jsonl   # 645 words
-│   └── crf_train_data_full.txt       # Training data
-├── models/
-│   ├── crf_model.pkl
-│   └── bilstm_crf_model.pkl
-├── tests/
-├── main.py
-└── requirements.txt
-```
-
-## 🔧 Configuration
-
-All settings in `src/config.py`:
-```python
-RAW_DATASET = "data/devnagri-gold-dataset.jsonl"
-CRF_TRAIN_DATA_FULL = "data/crf_train_data_full.txt"
-MODEL_PATH = "models/crf_model.pkl"
-BILSTM_CRF_MODEL_PATH = "models/bilstm_crf_model.pkl"
-RANDOM_STATE = 42
-TEST_SPLIT_RATIO = 0.2
-```
-
-## 🔬 Features (10 per syllable)
-
-- **Lexical**: syllable, length
-- **Context**: prev/next syllable
-- **Morphological**: has_virama, has_vowel_sign
-- **Structural**: starts_with_consonant, is_short, is_long
-
-**Feature Importance**: virama > syllable > context > length
-
-## 📖 Training
+## Training
 
 ```bash
+cd server
+
 # Preprocess (JSONL → CRF format)
 python scripts/preprocess.py
 
@@ -126,32 +197,34 @@ python scripts/train.py
 python scripts/train_bilstm_crf.py
 ```
 
+## Tech Stack
 
+- **Frontend**: React, Vite, Vanilla CSS (Neobrutalist design)
+- **Backend**: FastAPI, Uvicorn
+- **ML**: PyTorch, scikit-learn
+- **Models**: BiLSTM+CRF, CRF
 
-## ⭐ Key Points
+## Transliteration Examples
 
-1. **Model Auto-Detection**: SyllableSegmenter detects model type automatically
-2. **Hybrid Splitting**: Lookup training data first, fallback to linguistic rules
-3. **Reproducibility**: RANDOM_STATE=42 ensures identical results
-4. **GPU Support**: BiLSTM automatically uses GPU if available
-5. **UTF-8 Encoding**: All files use UTF-8
-6. **Production Ready**: Both models work end-to-end
-7. **Performance**: BiLSTM more accurate, CRF faster
-8. **Easy Extension**: Framework supports multi-script (Hindi, Marathi, Sanskrit)
+| Input (English) | Output (Devanagari) |
+|-----------------|---------------------|
+| bharat | भारत |
+| namaste | नमस्ते |
+| vidyalaya | विद्यालय |
+| shiksha | शिक्षा |
 
-## ⚙️ Common Issues
+## Common Issues
 
 **Model not found?** Train: `python scripts/train_bilstm_crf.py`
 
+**Backend not connecting?** Ensure server is running on port 8000
+
+**CORS errors?** Backend includes CORS middleware for localhost
+
 **Low accuracy on new words?** Use BiLSTM+CRF (better for unseen words)
 
-**Out of memory?** Reduce `batch_size` in training scripts
-
-**Inconsistent results?** Verify RANDOM_STATE=42 in config.py
-
-## 📚 References
+## References
 
 - CRF: https://en.wikipedia.org/wiki/Conditional_random_field
 - BiLSTM: https://en.wikipedia.org/wiki/Bidirectional_recurrent_neural_networks
 - Devanagari: https://en.wikipedia.org/wiki/Devanagari
-
