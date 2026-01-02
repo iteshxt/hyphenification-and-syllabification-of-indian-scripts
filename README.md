@@ -1,6 +1,6 @@
 # Devanagari Syllabification
 
-**Automatic syllable segmentation for Devanagari (Hindi) using BiLSTM+CRF & CRF models.**
+**Automatic syllable segmentation for Devanagari (Hindi) using BiLSTM+CRF & CRF models...**
 
 ## 🎯 Overview
 
